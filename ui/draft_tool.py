@@ -260,6 +260,7 @@ class DraftTool:
             pts = "{:.1f}".format(pos_df.iloc[i, 5])
             ppg = "{:.2f}".format(pos_df.iloc[i, 7])
             pip = "{:.2f}".format(pos_df.iloc[i, 8])
+            #This text currently doesn't work for TypeId.OTTONEU
             self.overall_view.insert('', tk.END, text=id, values=(name, value, inf_cost, position, team, pts, ppg, pip))
         
         if pos_keys == None:
@@ -269,6 +270,8 @@ class DraftTool:
             for pos in pos_keys:
                 logging.debug(f'updating {pos}')
                 self.refresh_pos_table(pos)
+        
+        self.update_player_search()
 
     def refresh_pos_table(self, pos):
         self.pos_view[pos].delete(*self.pos_view[pos].get_children())
@@ -385,7 +388,6 @@ class DraftTool:
         self.values['Int Salary'] = self.values['Salary'].apply(self.load_roster_salaries)
         self.positions = self.positions.merge(self.rosters[['Salary']], how='left', left_index=True, right_index=True, sort=False).fillna('$0')
         self.positions['Int Salary'] = self.positions['Salary'].apply(self.load_roster_salaries)
-        #self.positions.to_csv('C:\\Users\\adam.scharf\\Documents\\Personal\\FFB\\Test\\positions.csv')
         for pos in self.pos_values:
             if self.id_type == IdType.FG:
                 self.pos_values[pos] = self.pos_values[pos].merge(self.rosters[['Salary']], how='left', left_on='OttoneuID', right_index=True, sort=False).fillna('$0')
@@ -404,12 +406,13 @@ class DraftTool:
     def convert_rates(self, value):
         if value == 'NA' or math.isnan(value):
             return float(0)
+        elif type(value) == float:
+            return value
         else:
             return float(value)
 
     def load_values(self):
         self.values = pd.read_csv(self.value_file_path, index_col=0)
-        #self.values.set_index('ottoneu_ID', inplace=True)
         self.values.index = self.values.index.astype(str, copy = False)
         soto_id = self.values.index[self.values['Name'] == "Juan Soto"].tolist()[0]
         if soto_id == '23717':
@@ -419,22 +422,32 @@ class DraftTool:
             self.values = self.values.astype({'OttoneuID': 'str'})
         else:
             return False
-        if 'price' in self.values.columns:
-            #Leif output. Remap columns
-            self.values.rename(columns={'price': 'Value', 'Pos':'Position(s)', 'FGPts':'Points', 'FGPtspIP':'P/IP', 'FGPtspG':'P/G'}, inplace=True)
-            
-            self.values['Blank col 0'] = self.values['Value']
-            self.values['Value'] = self.values['Value'].apply(lambda x: "${:.0f}".format(x))
+        #Leif output. Remap columns
+        self.values.rename(columns={'price': 'Value', 'Pos':'Position(s)', 'FGPts':'Points', 'FGPtspIP':'P/IP', 'FGPtspG':'P/G'}, inplace=True)
+        
+        self.values['P/G'] = self.values['P/G'].apply(self.convert_rates)
+        self.values['P/IP'] = self.values['P/IP'].apply(self.convert_rates)
+
+        if not 'PAR' in self.values:
             self.values['PAR'] = 0
-            self.values['Team'] = '---'
-            self.values['P/G'] = self.values['P/G'].apply(self.convert_rates)
-            self.values['P/IP'] = self.values['P/IP'].apply(self.convert_rates)
-            self.values = self.values[['Blank col 0', 'Value', 'Name', 'Team', 'Position(s)', 'Points', 'PAR', 'P/G', 'P/IP']]
-            if self.id_type == IdType.OTTONEU:
-                #Leif doesn't have teams, need to merge here
-                self.values = self.values.merge(self.positions[['Org']], how='left', left_index=True, right_index=True, sort=False).fillna('---')
-                self.values['Team'] = self.values['Org']
-                self.values = self.values.drop('Org', axis=1)            
+        
+        if not 'Team' in self.values:
+            self.values = self.values.merge(self.positions[['Org']], how='left', left_index=True, right_index=True, sort=False).fillna('---')
+            self.values['Team'] = self.values['Org']
+            self.values = self.values.drop('Org', axis=1)
+
+        if self.id_type == IdType.OTTONEU:
+            if self.values['Value'].dtype == object:
+                self.values['Blank col 0'] = self.values['Value'].apply(lambda x: float(x.split('$')[1]))
+            else:
+                self.values['Blank col 0'] = self.values['Value']
+            #Leif doesn't have teams, need to merge here
+            self.values = self.values[['Blank col 0', 'Value', 'Name', 'Team', 'Position(s)', 'Points', 'PAR', 'P/G', 'P/IP']]    
+        else:
+            self.values =  self.values[['OttoneuID', 'Value', 'Name', 'Team', 'Position(s)', 'Points', 'PAR', 'P/G', 'P/IP']]   
+
+        if not self.values['Value'].dtype == object:
+            self.values['Value'] = self.values['Value'].apply(lambda x: "${:.0f}".format(x)) 
 
         self.values['Search_Name'] = self.values['Name'].apply(lambda x: util.string_util.normalize(x))
         #TODO: data validation here
@@ -444,6 +457,17 @@ class DraftTool:
             if os.path.exists(pos_path):
                 self.pos_values[pos] = pd.read_csv(pos_path, index_col=0)
                 self.pos_values[pos] = self.pos_values[pos].astype({'OttoneuID': 'str'})
+                if not 'PAR' in self.pos_values[pos]:
+                        self.pos_values[pos]['PAR'] = 0
+                if not 'Team' in self.pos_values[pos]:
+                    self.pos_values[pos] = self.pos_values[pos].merge(self.positions[['Org']], how='left', left_index=True, right_index=True, sort=False).fillna('---')
+                    self.pos_values[pos]['Team'] = self.pos_values[pos]['Org']
+                    self.pos_values[pos] = self.pos_values[pos].drop('Org', axis=1)
+                if self.id_type == IdType.OTTONEU:
+                    self.pos_values[pos]['Blank col 0'] = 0
+                    self.pos_values[pos] = self.pos_values[pos][['Blank col 0', 'Value', 'Name', 'Team', 'Position(s)', 'Points', 'PAR', 'P/G']]
+                else:
+                    self.pos_values[pos] =  self.pos_values[pos][['OttoneuID', 'Value', 'Name', 'Team', 'Position(s)', 'Points', 'PAR', 'P/G']]
                 #self.pos_values[pos].set_index('playerid', inplace=True)
                 #TODO data validation here
             else:
@@ -458,6 +482,17 @@ class DraftTool:
             if os.path.exists(pos_path):
                 self.pos_values[pos] = pd.read_csv(pos_path, index_col=0)
                 self.pos_values[pos] = self.pos_values[pos].astype({'OttoneuID': 'str'})
+                if not 'PAR' in self.pos_values[pos]:
+                        self.pos_values[pos]['PAR'] = 0
+                if not 'Team' in self.pos_values[pos]:
+                    self.pos_values[pos] = self.pos_values[pos].merge(self.positions[['Org']], how='left', left_index=True, right_index=True, sort=False).fillna('---')
+                    self.pos_values[pos]['Team'] = self.pos_values[pos]['Org']
+                    self.pos_values[pos] = self.pos_values[pos].drop('Org', axis=1)
+                if self.id_type == IdType.OTTONEU:
+                    self.pos_values[pos]['Blank col 0'] = 0
+                    self.pos_values[pos] = self.pos_values[pos][['Blank col 0', 'Value', 'Name', 'Team', 'Position(s)', 'Points', 'PAR', 'P/IP']]
+                else:
+                    self.pos_values[pos] =  self.pos_values[pos][['OttoneuID', 'Value', 'Name', 'Team', 'Position(s)', 'Points', 'PAR', 'P/IP']]
                 #self.pos_values[pos].set_index('playerid', inplace=True)
                 #TODO data validation here
             else:
@@ -467,7 +502,6 @@ class DraftTool:
 
 def main():
     try:
-        #tool = DraftTool(demo_source='C:\\Users\\adam.scharf\\Documents\\Personal\\FFB\\Demo\\recent_transactions.csv')
         run_event = threading.Event()
         tool = DraftTool(run_event)
     except Exception:
