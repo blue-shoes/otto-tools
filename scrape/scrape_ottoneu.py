@@ -149,6 +149,7 @@ class Scrape_Ottoneu(scrape_base.Scrape_Base):
         parsed_rows = [self.parse_rec_trans_row(row) for row in rows]
         df = DataFrame(parsed_rows)
         df.columns = ['Ottoneu ID','Team ID','Date','Salary','Type']
+        df = df.astype({'Ottoneu ID': 'str'})
         return df
 
     def parse_rec_trans_row(self, row):
