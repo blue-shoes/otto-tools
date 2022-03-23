@@ -207,10 +207,13 @@ class DraftTool:
                 while index >= 0:
                     if last_trans.iloc[index]['Date'] > last_time:
                         otto_id = last_trans.iloc[index]['Ottoneu ID']
-                        if self.positions.loc[otto_id]['FG MajorLeagueID'] == '':
-                            playerid = self.positions.loc[otto_id]['FG MinorLeagueID']
+                        if self.id_type == IdType.FG:
+                            if self.positions.loc[otto_id]['FG MajorLeagueID'] == '':
+                                playerid = self.positions.loc[otto_id]['FG MinorLeagueID']
+                            else:
+                                playerid = self.positions.loc[otto_id]['FG MajorLeagueID']
                         else:
-                            playerid = self.positions.loc[otto_id]['FG MajorLeagueID']
+                            playerid = otto_id
                         if not otto_id in self.positions.index:
                             logging.info(f'Otto id {otto_id} not in self.positions.index')
                             self.extra_cost += int(last_trans.iloc[index]['Salary'].split('$')[1])
