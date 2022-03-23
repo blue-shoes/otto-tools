@@ -358,6 +358,7 @@ class DraftTool:
         #Below used for api testing
         #self.rosters = pd.read_csv('C:\\Users\\adam.scharf\\Documents\\Personal\\FFB\\Test\\rosters.csv')
         #self.rosters.set_index("ottoneu ID", inplace=True)
+        #self.rosters.index = self.rosters.index.astype(str, copy=False)
 
         self.update_rostered_players()
         if 'Blank col 0' in self.values.columns:
