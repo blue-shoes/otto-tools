@@ -59,11 +59,15 @@ class DraftTool:
             return
 
         logging.info(f'League id = {self.lg_id}; Values Directory: {self.value_dir.get()}')
+        try:
+            self.create_main()
 
-        self.create_main()
+            logging.debug('Starting main loop')
 
-        logging.debug('Starting main loop')
-        self.main_win.mainloop()
+            self.main_win.mainloop()
+        except Exception as e:
+            logging.exception(e, msg='Error running draft')
+            mb.showerror("Draft Error", f'Error running draft {e}')
     
     def setup_logging(self, config=None):
         if config != None and 'log_level' in config:
@@ -89,6 +93,10 @@ class DraftTool:
         ttk.Entry(search_frame, textvariable=sv).grid(column=1,row=1)
 
         self.start_monitor = ttk.Button(search_frame, text='Start Draft Monitor', command=self.start_draft_monitor).grid(column=0,row=2)
+        self.monitor_status = tk.StringVar()
+        self.monitor_status.set('Monitor not started')
+        self.monitor_status_lbl = tk.Label(search_frame, textvariable=self.monitor_status, fg='red')
+        self.monitor_status_lbl.grid(column=1,row=2)
         self.stop_monitor = ttk.Button(search_frame, text="Stop Draft Monitor", command=self.stop_draft_monitor).grid(column=0,row=3)
 
         self.inflation_str_var = tk.StringVar()
@@ -174,6 +182,9 @@ class DraftTool:
         self.run_event.set()
         self.monitor_thread = threading.Thread(target = self.refresh_thread)
         self.monitor_thread.start()
+        self.monitor_status.set('Monitor enabled')
+        self.monitor_status_lbl.config(fg='green')
+        self.main_win.update_idletasks()
         self.main_win.after(1000, self.update_ui)
 
     def update_ui(self):
@@ -188,9 +199,12 @@ class DraftTool:
     def stop_draft_monitor(self):
         logging.info('!!!Stopping Draft Monitor!!!')
         self.run_event.clear()
+        self.monitor_status.set('Monitor stopped')
+        self.monitor_status_lbl.config(fg='red')
+        self.main_win.update_idletasks()
     
     def refresh_thread(self):
-        last_time = datetime.now()
+        last_time = datetime.now() - timedelta(minutes=30)
         #Below line for testing against api outside of draft
         #last_time = datetime.now() - timedelta(days=10)
         while(self.run_event.is_set()):
@@ -343,37 +357,75 @@ class DraftTool:
         self.value_dir.set(dir)
         
     def initialize_draft(self):
-        self.value_file_path = os.path.join(self.value_dir.get(), 'values.csv')
+        self.popup = tk.Toplevel()
+        tk.Label(self.popup, text='Draft Initializing').grid(row=0,column=0)
+        progress = 0
+        self.progress_var = tk.DoubleVar()
+        self.progress_var.set(0)
+        progress_bar = ttk.Progressbar(self.popup, variable=self.progress_var, maximum=100).grid(row=1, column=0)
+        self.popup.pack_slaves()
 
-        if not os.path.exists(self.value_file_path):
-            self.value_file_path = os.path.join(self.value_dir.get(), 'ottoneu_values.csv')
+        self.progress_step = sv = tk.StringVar()
+        self.progress_label = ttk.Label(self.popup, textvariable=self.progress_step)
+        self.progress_label.grid(column=0,row=2)
+
+        try:
+            self.value_file_path = os.path.join(self.value_dir.get(), 'values.csv')
+
             if not os.path.exists(self.value_file_path):
-                mb.showinfo('Bad Directory', f'The directory {self.value_dir.get()} does not contain a values.csv or ottoneu_values.csv file. Please select a different directory.')
+                self.value_file_path = os.path.join(self.value_dir.get(), 'ottoneu_values.csv')
+                if not os.path.exists(self.value_file_path):
+                    mb.showinfo('Bad Directory', f'The directory {self.value_dir.get()} does not contain a values.csv or ottoneu_values.csv file. Please select a different directory.')
+                    return
+            self.progress_step.set('Getting Ottoneu Player Universe...')
+            self.popup.update()
+            scraper = Scrape_Ottoneu()
+            self.positions = scraper.get_avg_salary_ds()
+            progress += 30
+            self.progress_var.set(progress)
+            self.popup.update()
+
+            self.progress_step.set('Loading Player Values...')
+            result = self.load_values()
+            if not result:
+                mb.showinfo('Bad Player Ids', f'The player ids did not match Ottoneu or FanGraphs ids. Please use one of these player id types.')
+                progress = 100
+                self.progress_var.set(progress)
+                self.popup.destroy()
+                self.popup.update()
                 return
+
+            self.lg_id = self.league_num_entry.get()
+            self.progress_step.set(f'Getting League {self.lg_id} Rosters...')
+            progress += 30
+            self.progress_var.set(progress)
+            self.popup.update()
+            self.rosters = scraper.scrape_roster_export(self.lg_id)
+            #Below used for api testing
+            #self.rosters = pd.read_csv('C:\\Users\\adam.scharf\\Documents\\Personal\\FFB\\Test\\rosters.csv')
+            #self.rosters.set_index("ottoneu ID", inplace=True)
+            #self.rosters.index = self.rosters.index.astype(str, copy=False)
+
+            progress += 15
+            self.progress_var.set(progress)
+            self.popup.update()
+            self.progress_step.set('Updating Values With Roster Info...')
+            self.update_rostered_players()
+            if 'Blank col 0' in self.values.columns:
+                self.values.sort_values(by=['Blank col 0'], ascending=[False], inplace=True)
+                for pos in bat_pos:
+                    self.pos_values[pos].sort_values(by=['P/G'], ascending=[False], inplace=True)
+                for pos in pitch_pos:
+                    self.pos_values[pos].sort_values(by=['P/IP'], ascending=[False], inplace=True)
+            
+            self.progress_step.set('Initialization Complete')
+            self.progress_var.set(100)
+            self.setup_win.destroy()
         
-        scraper = Scrape_Ottoneu()
-        self.positions = scraper.get_avg_salary_ds()
-
-        result = self.load_values()
-        if not result:
-            mb.showinfo('Bad Player Ids', f'The player ids did not match Ottoneu or FanGraphs ids. Please use one of these player id types.')
-            return
-
-        self.lg_id = self.league_num_entry.get()
-        self.rosters = scraper.scrape_roster_export(self.lg_id)
-        #Below used for api testing
-        #self.rosters = pd.read_csv('C:\\Users\\adam.scharf\\Documents\\Personal\\FFB\\Test\\rosters.csv')
-        #self.rosters.set_index("ottoneu ID", inplace=True)
-        #self.rosters.index = self.rosters.index.astype(str, copy=False)
-
-        self.update_rostered_players()
-        if 'Blank col 0' in self.values.columns:
-            self.values.sort_values(by=['Blank col 0'], ascending=[False], inplace=True)
-            for pos in bat_pos:
-                self.pos_values[pos].sort_values(by=['P/G'], ascending=[False], inplace=True)
-            for pos in pitch_pos:
-                self.pos_values[pos].sort_values(by=['P/IP'], ascending=[False], inplace=True)
-        self.setup_win.destroy()
+        except Exception as e:
+            logging.exception(e, msg='Error initializing draft')
+            mb.showerror("Initialization Error", f"There was an error initializing the draft: {e}")
+            self.popup.destroy()
     
     def calc_inflation(self):
         self.remaining_dollars = 12*400 - (self.positions['Int Salary'].sum() + self.extra_cost)
@@ -423,7 +475,7 @@ class DraftTool:
         else:
             return False
         #Leif output. Remap columns
-        self.values.rename(columns={'price': 'Value', 'Pos':'Position(s)', 'FGPts':'Points', 'FGPtspIP':'P/IP', 'FGPtspG':'P/G'}, inplace=True)
+        self.values.rename(columns={'price': 'Value', 'Pos':'Position(s)', 'FGPts':'Points', 'FGPtspIP':'P/IP', 'FGPtspG':'P/G', 'FGPts_G':'P/G'}, inplace=True)
         
         self.values['P/G'] = self.values['P/G'].apply(self.convert_rates)
         self.values['P/IP'] = self.values['P/IP'].apply(self.convert_rates)
