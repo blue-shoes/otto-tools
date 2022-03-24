@@ -37,7 +37,7 @@ The format of the file produced by https://ottovalues.shinyapps.io/FGPts and htt
 In addition, if the user wants custom positional rankings (rather than the point rate rankings automatically provided by the tool), they may include files of the same
 format titled [pos]_values.csv where [pos] is the Ottoneu position title.
 
-##Work in Progress
+## Work in Progress
 The current verison v0.8.1 is considered a Minimum Viable Product (MVP), with room for expansion. Potential feature expansions include:
 - Addition of 4x4 and 5x5 formats
 - Ability to toggle view to show or hide drafted players
