@@ -66,8 +66,8 @@ class DraftTool:
 
             self.main_win.mainloop()
         except Exception as e:
-            logging.exception(e, msg='Error running draft')
-            mb.showerror("Draft Error", f'Error running draft {e}')
+            logging.exception('Error running draft')
+            mb.showerror("Draft Error", f'Error running draft, see ./logs/draft.log')
     
     def setup_logging(self, config=None):
         if config != None and 'log_level' in config:
@@ -166,8 +166,8 @@ class DraftTool:
                 self.pos_view[pos].heading(col, text=col)
             self.pos_view[pos].bind('<<TreeviewSelect>>', self.on_select)
             self.pos_view[pos].pack()
-            vsb = ttk.Scrollbar(pos_frame, orient="vertical", command=self.pos_view[pos].yview)
-            vsb.pack(side='right', fill='y')
+            #vsb = ttk.Scrollbar(pos_frame, orient="vertical", command=self.pos_view[pos].yview)
+            #vsb.pack(side='right', fill='y')
 
         self.refresh_views()
 
@@ -386,13 +386,25 @@ class DraftTool:
             self.popup.update()
 
             self.progress_step.set('Loading Player Values...')
-            result = self.load_values()
+            try:
+                result = self.load_values()
+            except KeyError as ke:
+                logging.exception('Error initializing draft')
+                mb.showerror("Initialization Error", f"There was an error initializing the draft. Columns missing in one or more *values.csv files.")
+                self.progress_var.set(100)
+                self.popup.destroy()
+                return
+            except Exception as e:
+                logging.exception('Error initializing draft')
+                mb.showerror("Initialization Error", f"There was an error initializing the draft, see ./logs/draft.log")
+                self.progress_var.set(100)
+                self.popup.destroy()
+                return
+
             if not result:
                 mb.showinfo('Bad Player Ids', f'The player ids did not match Ottoneu or FanGraphs ids. Please use one of these player id types.')
-                progress = 100
-                self.progress_var.set(progress)
+                self.progress_var.set(100)
                 self.popup.destroy()
-                self.popup.update()
                 return
 
             self.lg_id = self.league_num_entry.get()
@@ -423,9 +435,10 @@ class DraftTool:
             self.setup_win.destroy()
         
         except Exception as e:
-            logging.exception(e, msg='Error initializing draft')
-            mb.showerror("Initialization Error", f"There was an error initializing the draft: {e}")
+            logging.exception('Error initializing draft')
+            mb.showerror("Initialization Error", f"There was an error initializing the draft, see ./logs/draft.log")
             self.popup.destroy()
+            return
     
     def calc_inflation(self):
         self.remaining_dollars = 12*400 - (self.positions['Int Salary'].sum() + self.extra_cost)
@@ -475,7 +488,7 @@ class DraftTool:
         else:
             return False
         #Leif output. Remap columns
-        self.values.rename(columns={'price': 'Value', 'Pos':'Position(s)', 'FGPts':'Points', 'FGPtspIP':'P/IP', 'FGPtspG':'P/G', 'FGPts_G':'P/G'}, inplace=True)
+        self.values.rename(columns={'price': 'Value', 'Pos':'Position(s)', 'FGPts':'Points', 'FGPtspIP':'P/IP', 'FGPtspG':'P/G', 'FGPts_G':'P/G', 'SABRPts' : 'Points', 'SABRPtspIP' : 'P/IP', 'SABRPtspG':'P/G'}, inplace=True)
         
         self.values['P/G'] = self.values['P/G'].apply(self.convert_rates)
         self.values['P/IP'] = self.values['P/IP'].apply(self.convert_rates)
