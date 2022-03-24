@@ -26,7 +26,7 @@ from enum import Enum
 bat_pos = ['C','1B','2B','3B','SS','MI','OF','Util']
 pitch_pos = ['SP','RP']
 
-__version__ = '0.8.0'
+__version__ = '0.8.1'
 
 class IdType(Enum):
     OTTONEU = 0
