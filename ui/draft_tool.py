@@ -144,8 +144,8 @@ class DraftTool:
             self.overall_view.heading(col, text=col)
         self.overall_view.bind('<<TreeviewSelect>>', self.on_select)
         self.overall_view.pack()
-        vsb = ttk.Scrollbar(overall_frame, orient="vertical", command=self.overall_view.yview)
-        vsb.pack(side='right', fill='y')
+        #vsb = ttk.Scrollbar(overall_frame, orient="vertical", command=self.overall_view.yview)
+        #vsb.pack(side='right', fill='y')
 
         for pos in self.pos_values:
             pos_frame = ttk.Frame(tab_control)
