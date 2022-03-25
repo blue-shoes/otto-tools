@@ -155,13 +155,13 @@ class DraftTool:
         show_drafted_btn.grid(row=0, column=1)
         show_drafted_btn.state(['!alternate'])
 
-        tab_control = ttk.Notebook(running_list_frame)
-        tab_control.grid(row=0, column=0)
+        self.tab_control = ttk.Notebook(running_list_frame)
+        self.tab_control.grid(row=0, column=0)
 
         self.pos_view = {}
 
-        overall_frame = ttk.Frame(tab_control)
-        tab_control.add(overall_frame, text='Overall')
+        overall_frame = ttk.Frame(self.tab_control)
+        self.tab_control.add(overall_frame, text='Overall')
         cols = ('Name','Value','Inf. Cost','Pos','Team','Points','P/G','P/IP')
         sortable_cols = ('Value', 'Points', 'P/G', 'P/IP')
         self.overall_view = ov = ttk.Treeview(overall_frame, columns=cols, show='headings')
@@ -187,8 +187,8 @@ class DraftTool:
         self.sort_cols[self.overall_view] = None
 
         for pos in self.pos_values:
-            pos_frame = ttk.Frame(tab_control)
-            tab_control.add(pos_frame, text=pos) 
+            pos_frame = ttk.Frame(self.tab_control)
+            self.tab_control.add(pos_frame, text=pos) 
             if pos in bat_pos:
                 cols = ('Name','Value','Inf. Cost','Pos','Team','Points','P/G')
             else:
@@ -229,7 +229,7 @@ class DraftTool:
         if pos != None:
             self.refresh_pos_table(pos)
         else:
-            self.refresh_views()
+            self.refresh_overall_view()
 
     def on_select(self, event):
         if len(event.widget.selection()) == 1:
@@ -330,32 +330,11 @@ class DraftTool:
             return df.sort_values(by=['P/IP'], ascending=[False])
 
     def refresh_views(self, pos_keys=None):
-        self.overall_view.delete(*self.overall_view.get_children())
         pos_df = self.values.loc[self.values['Salary'] == '$0']
         pos_val = pos_df.loc[~pos_df['Value'].str.contains("-")]
         self.remaining_value = pos_val['Value'].apply(lambda x: int(x.split('$')[1])).sum()
         self.calc_inflation()
-        if self.show_drafted_players.get() == 1:
-            pos_df = self.values
-        if self.sort_cols[self.overall_view] != None:
-            pos_df = self.sort_df_by(pos_df, self.sort_cols[self.overall_view])
-        for i in range(len(pos_df)):
-            id = pos_df.iloc[i, 0]
-            name = pos_df.iloc[i, 2]
-            value = pos_df.iloc[i, 1]
-            inf_cost = '$' + "{:.0f}".format(int(value.split('$')[1]) * self.inflation)
-            position = pos_df.iloc[i, 4]
-            team = pos_df.iloc[i, 3]
-            pts = "{:.1f}".format(pos_df.iloc[i, 5])
-            ppg = "{:.2f}".format(pos_df.iloc[i, 7])
-            pip = "{:.2f}".format(pos_df.iloc[i, 8])
-            salary = pos_df.iloc[i, 10]
-            #This text currently doesn't work for TypeId.OTTONEU
-            if salary == '$0':
-                self.overall_view.insert('', tk.END, text=id, values=(name, value, inf_cost, position, team, pts, ppg, pip))
-            else:
-                self.overall_view.insert('', tk.END, text=id, values=(name, value, inf_cost, position, team, pts, ppg, pip), tags=('rostered',))
-        
+        self.refresh_overall_view()
         if pos_keys == None:
             for pos in self.pos_values:
                 self.refresh_pos_table(pos)
@@ -365,6 +344,31 @@ class DraftTool:
                 self.refresh_pos_table(pos)
         
         self.update_player_search()
+    
+    def refresh_overall_view(self):
+        self.overall_view.delete(*self.overall_view.get_children())
+        if self.show_drafted_players.get() == 1:
+            pos_df = self.values
+        else:
+            pos_df = self.values.loc[self.values['Salary'] == '$0']
+        if self.sort_cols[self.overall_view] != None:
+            pos_df = self.sort_df_by(pos_df, self.sort_cols[self.overall_view])
+        for i in range(len(pos_df)):
+            id = pos_df.iat[i, 0]
+            name = pos_df.iat[i, 2]
+            value = pos_df.iat[i, 1]
+            inf_cost = '$' + "{:.0f}".format(int(value.split('$')[1]) * self.inflation)
+            position = pos_df.iat[i, 4]
+            team = pos_df.iat[i, 3]
+            pts = "{:.1f}".format(pos_df.iat[i, 5])
+            ppg = "{:.2f}".format(pos_df.iat[i, 7])
+            pip = "{:.2f}".format(pos_df.iat[i, 8])
+            salary = pos_df.iat[i, 10]
+            #This text currently doesn't work for TypeId.OTTONEU
+            if salary == '$0':
+                self.overall_view.insert('', tk.END, text=id, values=(name, value, inf_cost, position, team, pts, ppg, pip))
+            else:
+                self.overall_view.insert('', tk.END, text=id, values=(name, value, inf_cost, position, team, pts, ppg, pip), tags=('rostered',))
 
     def refresh_pos_table(self, pos):
         self.pos_view[pos].delete(*self.pos_view[pos].get_children())
@@ -375,15 +379,15 @@ class DraftTool:
         if self.sort_cols[self.pos_view[pos]] != None:
             pos_df = self.sort_df_by(pos_df, self.sort_cols[self.pos_view[pos]])
         for i in range(len(pos_df)):
-            id = pos_df.iloc[i, 0]
-            name = pos_df.iloc[i, 2]
-            value = pos_df.iloc[i, 1]
+            id = pos_df.iat[i, 0]
+            name = pos_df.iat[i, 2]
+            value = pos_df.iat[i, 1]
             inf_cost = '$' + "{:.0f}".format(int(value.split('$')[1]) * self.inflation)
-            position = pos_df.iloc[i, 4]
-            team = pos_df.iloc[i, 3]
-            pts = "{:.1f}".format(pos_df.iloc[i, 5])
-            rate = "{:.2f}".format(pos_df.iloc[i, 7])
-            salary = pos_df.iloc[i, 9]
+            position = pos_df.iat[i, 4]
+            team = pos_df.iat[i, 3]
+            pts = "{:.1f}".format(pos_df.iat[i, 5])
+            rate = "{:.2f}".format(pos_df.iat[i, 7])
+            salary = pos_df.iat[i, 9]
             #This text currently doesn't work for TypeId.OTTONEU
             if salary == '$0':
                 self.pos_view[pos].insert('', tk.END, text=id, values=(name, value, inf_cost, position, team, pts, rate))
@@ -399,16 +403,16 @@ class DraftTool:
         #from https://stackoverflow.com/a/27068344
         self.search_view.delete(*self.search_view.get_children())
         for i in range(len(df)):
-            id = df.iloc[i, 0]
-            name = df.iloc[i, 2]
-            value = df.iloc[i, 1]
+            id = df.iat[i, 0]
+            name = df.iat[i, 2]
+            value = df.iat[i, 1]
             inf_cost = '$' + "{:.0f}".format(int(value.split('$')[1]) * self.inflation)
-            salary = df.iloc[i,10]
-            pos = df.iloc[i, 4]
-            team = df.iloc[i, 3]
-            pts = "{:.1f}".format(df.iloc[i, 5])
-            ppg = "{:.2f}".format(df.iloc[i, 7])
-            pip = "{:.2f}".format(df.iloc[i, 8])
+            salary = df.iat[i,10]
+            pos = df.iat[i, 4]
+            team = df.iat[i, 3]
+            pts = "{:.1f}".format(df.iat[i, 5])
+            ppg = "{:.2f}".format(df.iat[i, 7])
+            pip = "{:.2f}".format(df.iat[i, 8])
             self.search_view.insert('', tk.END, values=(name, value, salary, inf_cost,pos, team, pts, ppg, pip))
 
     
