@@ -46,6 +46,7 @@ class DraftTool:
         self.setup_win.title(f"Ottoneu Draft Tool v{__version__}") 
         self.extra_cost = 0
         self.lg_id = None
+        self.sort_cols = {}
 
         setup_tab = ttk.Frame(self.setup_win)
         
@@ -131,6 +132,7 @@ class DraftTool:
         overall_frame = ttk.Frame(tab_control)
         tab_control.add(overall_frame, text='Overall')
         cols = ('Name','Value','Inf. Cost','Pos','Team','Points','P/G','P/IP')
+        sortable_cols = ('Value', 'Points', 'P/G', 'P/IP')
         self.overall_view = ov = ttk.Treeview(overall_frame, columns=cols, show='headings')
         ov.column("# 1",anchor=W, stretch=NO, width=200)
         ov.column("# 2",anchor=CENTER, stretch=NO, width=50)
@@ -141,11 +143,15 @@ class DraftTool:
         ov.column("# 7",anchor=CENTER, stretch=NO, width=50)
         ov.column("# 8",anchor=CENTER, stretch=NO, width=50)
         for col in cols:
-            self.overall_view.heading(col, text=col)
+            if col in sortable_cols:
+                self.overall_view.heading(col, text=col, command=lambda _col=col: self.sort_treeview(self.overall_view, _col) )
+            else:
+                self.overall_view.heading(col, text=col)
         self.overall_view.bind('<<TreeviewSelect>>', self.on_select)
         self.overall_view.pack()
         #vsb = ttk.Scrollbar(overall_frame, orient="vertical", command=self.overall_view.yview)
         #vsb.pack(side='right', fill='y')
+        self.sort_cols[self.overall_view] = None
 
         for pos in self.pos_values:
             pos_frame = ttk.Frame(tab_control)
@@ -163,15 +169,30 @@ class DraftTool:
             pv.column("# 6",anchor=CENTER, stretch=NO, width=50)
             pv.column("# 7",anchor=CENTER, stretch=NO, width=50)
             for col in cols:
-                self.pos_view[pos].heading(col, text=col)
+                if col in sortable_cols:
+                    pv.heading(col, text=col, command=lambda _pv=pv, _col=col, _pos=pos: self.sort_treeview(_pv, _col, _pos))
+                else:
+                    pv.heading(col, text=col)
             self.pos_view[pos].bind('<<TreeviewSelect>>', self.on_select)
             self.pos_view[pos].pack()
             #vsb = ttk.Scrollbar(pos_frame, orient="vertical", command=self.pos_view[pos].yview)
             #vsb.pack(side='right', fill='y')
+            self.sort_cols[pv] = None
 
         self.refresh_views()
 
         main_frame.pack()
+
+    def sort_treeview(self, treeview, col, pos=None):
+        if self.sort_cols[treeview] == col:
+            self.sort_cols[treeview] = None
+        else:
+            self.sort_cols[treeview] = col
+        if pos != None:
+            print('refresh_pos_table')
+            self.refresh_pos_table(pos)
+        else:
+            self.refresh_views()
 
     def on_select(self, event):
         if len(event.widget.selection()) == 1:
@@ -258,12 +279,27 @@ class DraftTool:
                 self.queue.put(('pos', list(set(update_pos))))
             sleep(45)
 
+    def sort_df_by(self, df, col):
+        if col == 'Value':
+            if 'Blank col 0' in df:
+                return df.sort_values(by=['Blank col 0'], ascending=[False])
+            else:
+                return df.sort_values(by=['PAR'], ascending=[False])
+        if col == 'Points':
+            return df.sort_values(by=['Points'], ascending=[False])
+        if col == 'P/G':
+            return df.sort_values(by=['P/G'], ascending=[False])
+        if col == 'P/IP':
+            return df.sort_values(by=['P/IP'], ascending=[False])
+
     def refresh_views(self, pos_keys=None):
         self.overall_view.delete(*self.overall_view.get_children())
         pos_df = self.values.loc[self.values['Salary'] == '$0']
         pos_val = pos_df.loc[~pos_df['Value'].str.contains("-")]
         self.remaining_value = pos_val['Value'].apply(lambda x: int(x.split('$')[1])).sum()
         self.calc_inflation()
+        if self.sort_cols[self.overall_view] != None:
+            pos_df = self.sort_df_by(pos_df, self.sort_cols[self.overall_view])
         for i in range(len(pos_df)):
             id = pos_df.iloc[i, 0]
             name = pos_df.iloc[i, 2]
@@ -290,6 +326,8 @@ class DraftTool:
     def refresh_pos_table(self, pos):
         self.pos_view[pos].delete(*self.pos_view[pos].get_children())
         pos_df = self.pos_values[pos].loc[self.pos_values[pos]['Salary'] == '$0']
+        if self.sort_cols[self.pos_view[pos]] != None:
+            pos_df = self.sort_df_by(pos_df, self.sort_cols[self.pos_view[pos]])
         for i in range(len(pos_df)):
             id = pos_df.iloc[i, 0]
             name = pos_df.iloc[i, 2]
@@ -299,6 +337,7 @@ class DraftTool:
             team = pos_df.iloc[i, 3]
             pts = "{:.1f}".format(pos_df.iloc[i, 5])
             rate = "{:.2f}".format(pos_df.iloc[i, 7])
+            #This text currently doesn't work for TypeId.OTTONEU
             self.pos_view[pos].insert('', tk.END, text=id, values=(name, value, inf_cost, position, team, pts, rate))
 
     def update_player_search(self):
