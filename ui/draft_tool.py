@@ -47,6 +47,8 @@ class DraftTool:
         self.extra_cost = 0
         self.lg_id = None
         self.sort_cols = {}
+        self.show_drafted_players = tk.BooleanVar()
+        self.show_drafted_players.set(False)
 
         setup_tab = ttk.Frame(self.setup_win)
         
@@ -79,8 +81,30 @@ class DraftTool:
             os.mkdir('.\\logs')
         logging.basicConfig(format='%(asctime)s %(name)s %(levelname)s %(message)s', level=level, filename='.\\logs\\draft.log')
 
+    def initialize_treeview_style(self):
+        #Fix for Tkinter version issue found here: https://stackoverflow.com/a/67141755
+        s = ttk.Style()
+
+        #from os import name as OS_Name
+        if self.main_win.getvar('tk_patchLevel')=='8.6.9': #and OS_Name=='nt':
+            def fixed_map(option):
+                # Fix for setting text colour for Tkinter 8.6.9
+                # From: https://core.tcl.tk/tk/info/509cafafae
+                #
+                # Returns the style map for 'option' with any styles starting with
+                # ('!disabled', '!selected', ...) filtered out.
+                #
+                # style.map() returns an empty list for missing options, so this
+                # should be future-safe.
+                return [elm for elm in s.map('Treeview', query_opt=option) if elm[:2] != ('!disabled', '!selected')]
+            s.map('Treeview', foreground=fixed_map('foreground'), background=fixed_map('background'))
+
     def create_main(self):
+        
         self.main_win = tk.Tk()
+
+        self.initialize_treeview_style()
+
         self.main_win.title(f'Ottoneu Draft Tool v{__version__}')
         main_frame = ttk.Frame(self.main_win)
         ttk.Label(main_frame, text = f"League {self.lg_id} Draft", font='bold').grid(column=0,row=0)
@@ -124,8 +148,15 @@ class DraftTool:
         sv.column("# 8",anchor=CENTER, stretch=NO, width=50)
         sv.column("# 9",anchor=CENTER, stretch=NO, width=50)
 
-        tab_control = ttk.Notebook(main_frame)
-        tab_control.grid(row=2, column=0, columnspan=2)
+        running_list_frame = ttk.Frame(main_frame)
+        running_list_frame.grid(row=2, column=0, columnspan=2)
+
+        show_drafted_btn = ttk.Checkbutton(running_list_frame, text="Show drafted players?", variable=self.show_drafted_players, command=self.toggle_drafted)
+        show_drafted_btn.grid(row=0, column=1)
+        show_drafted_btn.state(['!alternate'])
+
+        tab_control = ttk.Notebook(running_list_frame)
+        tab_control.grid(row=0, column=0)
 
         self.pos_view = {}
 
@@ -148,6 +179,8 @@ class DraftTool:
             else:
                 self.overall_view.heading(col, text=col)
         self.overall_view.bind('<<TreeviewSelect>>', self.on_select)
+        self.overall_view.tag_configure('rostered', background='#A6A6A6')
+        self.overall_view.tag_configure('rostered', foreground='#5A5A5A')
         self.overall_view.pack()
         #vsb = ttk.Scrollbar(overall_frame, orient="vertical", command=self.overall_view.yview)
         #vsb.pack(side='right', fill='y')
@@ -174,6 +207,7 @@ class DraftTool:
                 else:
                     pv.heading(col, text=col)
             self.pos_view[pos].bind('<<TreeviewSelect>>', self.on_select)
+            self.pos_view[pos].tag_configure('rostered', background='#A6A6A6', foreground='#5A5A5A')
             self.pos_view[pos].pack()
             #vsb = ttk.Scrollbar(pos_frame, orient="vertical", command=self.pos_view[pos].yview)
             #vsb.pack(side='right', fill='y')
@@ -183,13 +217,16 @@ class DraftTool:
 
         main_frame.pack()
 
+    def toggle_drafted(self):
+        self.show_drafted_players.set(not self.show_drafted_players.get())
+        self.refresh_views()
+
     def sort_treeview(self, treeview, col, pos=None):
         if self.sort_cols[treeview] == col:
             self.sort_cols[treeview] = None
         else:
             self.sort_cols[treeview] = col
         if pos != None:
-            print('refresh_pos_table')
             self.refresh_pos_table(pos)
         else:
             self.refresh_views()
@@ -298,6 +335,8 @@ class DraftTool:
         pos_val = pos_df.loc[~pos_df['Value'].str.contains("-")]
         self.remaining_value = pos_val['Value'].apply(lambda x: int(x.split('$')[1])).sum()
         self.calc_inflation()
+        if self.show_drafted_players.get() == 1:
+            pos_df = self.values
         if self.sort_cols[self.overall_view] != None:
             pos_df = self.sort_df_by(pos_df, self.sort_cols[self.overall_view])
         for i in range(len(pos_df)):
@@ -310,8 +349,12 @@ class DraftTool:
             pts = "{:.1f}".format(pos_df.iloc[i, 5])
             ppg = "{:.2f}".format(pos_df.iloc[i, 7])
             pip = "{:.2f}".format(pos_df.iloc[i, 8])
+            salary = pos_df.iloc[i, 10]
             #This text currently doesn't work for TypeId.OTTONEU
-            self.overall_view.insert('', tk.END, text=id, values=(name, value, inf_cost, position, team, pts, ppg, pip))
+            if salary == '$0':
+                self.overall_view.insert('', tk.END, text=id, values=(name, value, inf_cost, position, team, pts, ppg, pip))
+            else:
+                self.overall_view.insert('', tk.END, text=id, values=(name, value, inf_cost, position, team, pts, ppg, pip), tags=('rostered',))
         
         if pos_keys == None:
             for pos in self.pos_values:
@@ -325,7 +368,10 @@ class DraftTool:
 
     def refresh_pos_table(self, pos):
         self.pos_view[pos].delete(*self.pos_view[pos].get_children())
-        pos_df = self.pos_values[pos].loc[self.pos_values[pos]['Salary'] == '$0']
+        if self.show_drafted_players.get() == 1:
+            pos_df = self.pos_values[pos]
+        else:
+            pos_df = self.pos_values[pos].loc[self.pos_values[pos]['Salary'] == '$0']
         if self.sort_cols[self.pos_view[pos]] != None:
             pos_df = self.sort_df_by(pos_df, self.sort_cols[self.pos_view[pos]])
         for i in range(len(pos_df)):
@@ -337,8 +383,12 @@ class DraftTool:
             team = pos_df.iloc[i, 3]
             pts = "{:.1f}".format(pos_df.iloc[i, 5])
             rate = "{:.2f}".format(pos_df.iloc[i, 7])
+            salary = pos_df.iloc[i, 9]
             #This text currently doesn't work for TypeId.OTTONEU
-            self.pos_view[pos].insert('', tk.END, text=id, values=(name, value, inf_cost, position, team, pts, rate))
+            if salary == '$0':
+                self.pos_view[pos].insert('', tk.END, text=id, values=(name, value, inf_cost, position, team, pts, rate))
+            else:
+                self.pos_view[pos].insert('', tk.END, text=id, values=(name, value, inf_cost, position, team, pts, rate), tags=('rostered',))
 
     def update_player_search(self):
         text = self.search_string.get().upper()
@@ -581,6 +631,7 @@ class DraftTool:
                     self.pos_values[pos] = self.values.loc[self.values['P/G'] > 0].sort_values(by=['P/G'], ascending=[False])
                 else:
                     self.pos_values[pos] = self.values.loc[self.values['Position(s)'].str.contains(pos)].sort_values(by=['P/G'], ascending=[False])
+                self.pos_values[pos] = self.pos_values[pos].drop('P/IP', axis=1)
         for pos in pitch_pos:
             pos_path = os.path.join(self.value_dir.get(), f'{pos}_values.csv')
             if os.path.exists(pos_path):
