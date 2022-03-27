@@ -138,11 +138,11 @@ class DraftTool:
             self.search_view.heading(col, text=col) 
         self.search_view.grid(column=0,row=0)   
         self.search_view.bind('<<TreeviewSelect>>', self.on_select)
-        sv.column("# 1",anchor=W, stretch=NO, width=200)
+        sv.column("# 1",anchor=W, stretch=NO, width=175)
         sv.column("# 2",anchor=CENTER, stretch=NO, width=50)
         sv.column("# 3",anchor=CENTER, stretch=NO, width=50)
         sv.column("# 4",anchor=CENTER, stretch=NO, width=50)
-        sv.column("# 5",anchor=CENTER, stretch=NO, width=50)
+        sv.column("# 5",anchor=CENTER, stretch=NO, width=75)
         sv.column("# 6",anchor=CENTER, stretch=NO, width=50)
         sv.column("# 7",anchor=CENTER, stretch=NO, width=50)
         sv.column("# 8",anchor=CENTER, stretch=NO, width=50)
@@ -155,20 +155,22 @@ class DraftTool:
         show_drafted_btn.grid(row=0, column=1)
         show_drafted_btn.state(['!alternate'])
 
-        self.tab_control = ttk.Notebook(running_list_frame)
+        self.tab_control = ttk.Notebook(running_list_frame, width=600, height=300)
         self.tab_control.grid(row=0, column=0)
 
         self.pos_view = {}
+        self.scroll_bars = {}
 
         overall_frame = ttk.Frame(self.tab_control)
         self.tab_control.add(overall_frame, text='Overall')
         cols = ('Name','Value','Inf. Cost','Pos','Team','Points','P/G','P/IP')
         sortable_cols = ('Value', 'Points', 'P/G', 'P/IP')
         self.overall_view = ov = ttk.Treeview(overall_frame, columns=cols, show='headings')
-        ov.column("# 1",anchor=W, stretch=NO, width=200)
+        ov.grid(column=0)
+        ov.column("# 1",anchor=W, stretch=NO, width=175)
         ov.column("# 2",anchor=CENTER, stretch=NO, width=50)
         ov.column("# 3",anchor=CENTER, stretch=NO, width=50)
-        ov.column("# 4",anchor=CENTER, stretch=NO, width=50)
+        ov.column("# 4",anchor=CENTER, stretch=NO, width=75)
         ov.column("# 5",anchor=CENTER, stretch=NO, width=50)
         ov.column("# 6",anchor=CENTER, stretch=NO, width=50)
         ov.column("# 7",anchor=CENTER, stretch=NO, width=50)
@@ -181,9 +183,11 @@ class DraftTool:
         self.overall_view.bind('<<TreeviewSelect>>', self.on_select)
         self.overall_view.tag_configure('rostered', background='#A6A6A6')
         self.overall_view.tag_configure('rostered', foreground='#5A5A5A')
-        self.overall_view.pack()
-        #vsb = ttk.Scrollbar(overall_frame, orient="vertical", command=self.overall_view.yview)
-        #vsb.pack(side='right', fill='y')
+        self.overall_view.pack(side='left', fill='both', expand=1)
+        vsb = ttk.Scrollbar(ov, orient="vertical", command=self.overall_view.yview)
+        ov.configure(yscrollcommand=vsb.set)
+        vsb.pack(side='right', fill='y')
+        self.scroll_bars[ov] = vsb
         self.sort_cols[self.overall_view] = None
 
         for pos in self.pos_values:
@@ -194,10 +198,10 @@ class DraftTool:
             else:
                 cols = ('Name','Value','Inf. Cost','Pos','Team','Points','P/IP')
             self.pos_view[pos] = pv = ttk.Treeview(pos_frame, columns=cols, show='headings')
-            pv.column("# 1",anchor=W, stretch=NO, width=200)
+            pv.column("# 1",anchor=W, stretch=NO, width=175)
             pv.column("# 2",anchor=CENTER, stretch=NO, width=50)
             pv.column("# 3",anchor=CENTER, stretch=NO, width=50)
-            pv.column("# 4",anchor=CENTER, stretch=NO, width=50)
+            pv.column("# 4",anchor=CENTER, stretch=NO, width=75)
             pv.column("# 5",anchor=CENTER, stretch=NO, width=50)
             pv.column("# 6",anchor=CENTER, stretch=NO, width=50)
             pv.column("# 7",anchor=CENTER, stretch=NO, width=50)
@@ -208,7 +212,11 @@ class DraftTool:
                     pv.heading(col, text=col)
             self.pos_view[pos].bind('<<TreeviewSelect>>', self.on_select)
             self.pos_view[pos].tag_configure('rostered', background='#A6A6A6', foreground='#5A5A5A')
-            self.pos_view[pos].pack()
+            self.pos_view[pos].pack(side='left', fill='both', expand=1)
+            vsb = ttk.Scrollbar(pv, orient="vertical", command=self.pos_view[pos].yview)
+            pv.configure(yscrollcommand=vsb.set)
+            vsb.pack(side='right', fill='y')
+            self.scroll_bars[pv] = vsb
             #vsb = ttk.Scrollbar(pos_frame, orient="vertical", command=self.pos_view[pos].yview)
             #vsb.pack(side='right', fill='y')
             self.sort_cols[pv] = None
@@ -369,6 +377,7 @@ class DraftTool:
                 self.overall_view.insert('', tk.END, text=id, values=(name, value, inf_cost, position, team, pts, ppg, pip))
             else:
                 self.overall_view.insert('', tk.END, text=id, values=(name, value, inf_cost, position, team, pts, ppg, pip), tags=('rostered',))
+        self.scroll_bars[self.overall_view].pack()
 
     def refresh_pos_table(self, pos):
         self.pos_view[pos].delete(*self.pos_view[pos].get_children())
@@ -387,12 +396,13 @@ class DraftTool:
             team = pos_df.iat[i, 3]
             pts = "{:.1f}".format(pos_df.iat[i, 5])
             rate = "{:.2f}".format(pos_df.iat[i, 7])
-            salary = pos_df.iat[i, 9]
+            salary = pos_df.iat[i, 8]
             #This text currently doesn't work for TypeId.OTTONEU
             if salary == '$0':
                 self.pos_view[pos].insert('', tk.END, text=id, values=(name, value, inf_cost, position, team, pts, rate))
             else:
                 self.pos_view[pos].insert('', tk.END, text=id, values=(name, value, inf_cost, position, team, pts, rate), tags=('rostered',))
+        self.scroll_bars[self.pos_view[pos]].pack()
 
     def update_player_search(self):
         text = self.search_string.get().upper()
@@ -607,7 +617,6 @@ class DraftTool:
         if not self.values['Value'].dtype == object:
             self.values['Value'] = self.values['Value'].apply(lambda x: "${:.0f}".format(x)) 
 
-        self.values['Search_Name'] = self.values['Name'].apply(lambda x: util.string_util.normalize(x))
         #TODO: data validation here
         self.pos_values = {}
         for pos in bat_pos:
@@ -657,6 +666,9 @@ class DraftTool:
             else:
                 self.pos_values[pos] = self.values.loc[self.values['Position(s)'].str.contains(pos)].sort_values(by=['P/IP'], ascending=[False])
                 self.pos_values[pos] = self.pos_values[pos].drop('P/G', axis=1)
+        
+        self.values['Search_Name'] = self.values['Name'].apply(lambda x: util.string_util.normalize(x))
+
         return True
 
 def main():
