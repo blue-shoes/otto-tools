@@ -107,10 +107,12 @@ class DraftTool:
 
         self.main_win.title(f'Ottoneu Draft Tool v{__version__}')
         main_frame = ttk.Frame(self.main_win)
-        ttk.Label(main_frame, text = f"League {self.lg_id} Draft", font='bold').grid(column=0,row=0)
+        lg_lbl = ttk.Label(main_frame, text = f"League {self.lg_id} Draft", font='bold')
+        lg_lbl.config(anchor="center")
+        lg_lbl.grid(column=0,row=0, pady=5)
 
         search_frame = ttk.Frame(main_frame)
-        search_frame.grid(column=0,row=1)
+        search_frame.grid(column=0,row=1, padx=5)
         ttk.Label(search_frame, text = 'Player Search: ', font='bold').grid(column=0,row=1,pady=5)
 
         self.search_string = sv = tk.StringVar()
@@ -136,7 +138,7 @@ class DraftTool:
         self.search_view = sv = ttk.Treeview(f, columns=cols, show='headings')    
         for col in cols:
             self.search_view.heading(col, text=col) 
-        self.search_view.grid(column=0,row=0)   
+        self.search_view.grid(column=0,row=0, padx=5)   
         self.search_view.bind('<<TreeviewSelect>>', self.on_select)
         sv.column("# 1",anchor=W, stretch=NO, width=175)
         sv.column("# 2",anchor=CENTER, stretch=NO, width=50)
@@ -149,13 +151,13 @@ class DraftTool:
         sv.column("# 9",anchor=CENTER, stretch=NO, width=50)
 
         running_list_frame = ttk.Frame(main_frame)
-        running_list_frame.grid(row=2, column=0, columnspan=2)
+        running_list_frame.grid(row=2, column=0, columnspan=2, pady=5)
 
         show_drafted_btn = ttk.Checkbutton(running_list_frame, text="Show drafted players?", variable=self.show_drafted_players, command=self.toggle_drafted)
-        show_drafted_btn.grid(row=0, column=1)
+        show_drafted_btn.grid(row=0, column=1, sticky=tk.N, pady=20)
         show_drafted_btn.state(['!alternate'])
 
-        self.tab_control = ttk.Notebook(running_list_frame, width=600, height=300)
+        self.tab_control = ttk.Notebook(running_list_frame, width=570, height=300)
         self.tab_control.grid(row=0, column=0)
 
         self.pos_view = {}
@@ -427,17 +429,21 @@ class DraftTool:
 
     
     def create_setup_tab(self, tab):
-        ttk.Label(tab, text = "Enter League #:").grid(column=0,row=0)
-        #width is in text units, not pixels
-        self.league_num_entry = ttk.Entry(tab, width = 10)
-        self.league_num_entry.grid(column=1,row=0)
-        ttk.Label(tab, text = "Select Directory with Player Values:").grid(column=0,row=1)
-        self.dir_button = ttk.Button(tab, textvariable = self.value_dir, command=self.select_dir)
-        self.dir_button.grid(column=1,row=1)
+        try:
+            ttk.Label(tab, text = "Enter League #:").grid(column=0,row=0, pady=5, sticky=tk.E)
+            #width is in text units, not pixels
+            self.league_num_entry = ttk.Entry(tab, width = 10)
+            self.league_num_entry.grid(column=1,row=0, sticky=tk.W, padx=5)
+            ttk.Label(tab, text = "Player Values Directory:").grid(column=0,row=1, pady=5, stick=tk.E)
+            self.dir_button = ttk.Button(tab, textvariable = self.value_dir, command=self.select_dir)
+            self.dir_button.grid(column=1,row=1, padx=5)
 
-        ttk.Button(tab, text='Initialize Session', command=self.initialize_draft).grid(column=0,row=2)
+            ttk.Button(tab, text='Initialize Session', command=self.initialize_draft).grid(column=1,row=2, pady=5, sticky=tk.W, padx=5)
 
-        tab.pack()
+            tab.pack()
+        except Exception as e:
+            logging.exception('Error creating draft')
+            mb.showerror("Draft Error", f'Error creating draft, see ./logs/draft.log')
 
     def select_dir(self):
         filetypes = (
@@ -465,7 +471,7 @@ class DraftTool:
         progress = 0
         self.progress_var = tk.DoubleVar()
         self.progress_var.set(0)
-        progress_bar = ttk.Progressbar(self.popup, variable=self.progress_var, maximum=100).grid(row=1, column=0)
+        ttk.Progressbar(self.popup, variable=self.progress_var, maximum=100).grid(row=1, column=0)
         self.popup.pack_slaves()
 
         self.progress_step = sv = tk.StringVar()
