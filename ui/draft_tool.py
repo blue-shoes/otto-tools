@@ -108,11 +108,10 @@ class DraftTool:
         self.main_win.title(f'Ottoneu Draft Tool v{__version__}')
         main_frame = ttk.Frame(self.main_win)
         lg_lbl = ttk.Label(main_frame, text = f"League {self.lg_id} Draft", font='bold')
-        lg_lbl.config(anchor="center")
-        lg_lbl.grid(column=0,row=0, pady=5)
+        lg_lbl.grid(column=0,row=0, pady=5, columnspan=2)
 
         search_frame = ttk.Frame(main_frame)
-        search_frame.grid(column=0,row=1, padx=5)
+        search_frame.grid(column=0,row=1, padx=5, sticky=tk.N, pady=17)
         ttk.Label(search_frame, text = 'Player Search: ', font='bold').grid(column=0,row=1,pady=5)
 
         self.search_string = sv = tk.StringVar()
@@ -133,12 +132,14 @@ class DraftTool:
 
         f = ttk.Frame(main_frame)
         f.grid(column=1,row=1)
+        
+        ttk.Label(f, text = 'Search Results', font='bold').grid(column=0, row=0)
 
         cols = ('Name','Value','Salary','Inf. Cost','Pos','Team','Points','P/G','P/IP')
         self.search_view = sv = ttk.Treeview(f, columns=cols, show='headings')    
         for col in cols:
             self.search_view.heading(col, text=col) 
-        self.search_view.grid(column=0,row=0, padx=5)   
+        self.search_view.grid(column=0,row=1, padx=5)   
         self.search_view.bind('<<TreeviewSelect>>', self.on_select)
         sv.column("# 1",anchor=W, stretch=NO, width=175)
         sv.column("# 2",anchor=CENTER, stretch=NO, width=50)
