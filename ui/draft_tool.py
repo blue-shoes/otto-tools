@@ -141,6 +141,8 @@ class DraftTool:
             self.search_view.heading(col, text=col) 
         self.search_view.grid(column=0,row=1, padx=5)   
         self.search_view.bind('<<TreeviewSelect>>', self.on_select)
+        self.search_view.tag_configure('rostered', background='#A6A6A6')
+        self.search_view.tag_configure('rostered', foreground='#5A5A5A')
         sv.column("# 1",anchor=W, stretch=NO, width=175)
         sv.column("# 2",anchor=CENTER, stretch=NO, width=50)
         sv.column("# 3",anchor=CENTER, stretch=NO, width=50)
@@ -365,7 +367,7 @@ class DraftTool:
         if self.sort_cols[self.overall_view] != None:
             pos_df = self.sort_df_by(pos_df, self.sort_cols[self.overall_view])
         for i in range(len(pos_df)):
-            id = pos_df.iat[i, 0]
+            id = pos_df.index[i]
             name = pos_df.iat[i, 2]
             value = pos_df.iat[i, 1]
             inf_cost = '$' + "{:.0f}".format(int(value.split('$')[1]) * self.inflation)
@@ -391,7 +393,7 @@ class DraftTool:
         if self.sort_cols[self.pos_view[pos]] != None:
             pos_df = self.sort_df_by(pos_df, self.sort_cols[self.pos_view[pos]])
         for i in range(len(pos_df)):
-            id = pos_df.iat[i, 0]
+            id = pos_df.index[i]
             name = pos_df.iat[i, 2]
             value = pos_df.iat[i, 1]
             inf_cost = '$' + "{:.0f}".format(int(value.split('$')[1]) * self.inflation)
@@ -416,7 +418,7 @@ class DraftTool:
         #from https://stackoverflow.com/a/27068344
         self.search_view.delete(*self.search_view.get_children())
         for i in range(len(df)):
-            id = df.iat[i, 0]
+            id = df.index[i]
             name = df.iat[i, 2]
             value = df.iat[i, 1]
             inf_cost = '$' + "{:.0f}".format(int(value.split('$')[1]) * self.inflation)
@@ -426,8 +428,10 @@ class DraftTool:
             pts = "{:.1f}".format(df.iat[i, 5])
             ppg = "{:.2f}".format(df.iat[i, 7])
             pip = "{:.2f}".format(df.iat[i, 8])
-            self.search_view.insert('', tk.END, values=(name, value, salary, inf_cost,pos, team, pts, ppg, pip))
-
+            if salary != '$0':
+                self.search_view.insert('', tk.END, text=id, tags=('rostered',), values=(name, value, salary, inf_cost,pos, team, pts, ppg, pip))
+            else:
+                self.search_view.insert('', tk.END, text=id, values=(name, value, salary, inf_cost,pos, team, pts, ppg, pip))
     
     def create_setup_tab(self, tab):
         try:
