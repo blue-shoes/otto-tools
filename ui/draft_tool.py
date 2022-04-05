@@ -49,6 +49,10 @@ class DraftTool:
         self.sort_cols = {}
         self.show_drafted_players = tk.BooleanVar()
         self.show_drafted_players.set(False)
+        self.show_removed_players = tk.BooleanVar()
+        self.show_removed_players.set(False)
+        self.targeted_players = pd.DataFrame()
+        self.removed_players = []
 
         setup_tab = ttk.Frame(self.setup_win)
         
@@ -157,9 +161,16 @@ class DraftTool:
         running_list_frame = ttk.Frame(main_frame)
         running_list_frame.grid(row=2, column=0, columnspan=2, pady=5)
 
-        show_drafted_btn = ttk.Checkbutton(running_list_frame, text="Show drafted players?", variable=self.show_drafted_players, command=self.toggle_drafted)
-        show_drafted_btn.grid(row=0, column=1, sticky=tk.N, pady=20)
+        button_frame = ttk.Frame(running_list_frame)
+        button_frame.grid(row=0, column=1, sticky=tk.N, pady=15)
+
+        show_drafted_btn = ttk.Checkbutton(button_frame, text="Show drafted players?", variable=self.show_drafted_players, command=self.toggle_drafted)
+        show_drafted_btn.grid(row=0, column=1, sticky=tk.NW, pady=5)
         show_drafted_btn.state(['!alternate'])
+
+        show_removed_btn = ttk.Checkbutton(button_frame, text="Show removed players?", variable=self.show_removed_players, command=self.toggle_removed)
+        show_removed_btn.grid(row=1, column=1, sticky=tk.NW)
+        show_removed_btn.state(['!alternate'])
 
         self.tab_control = ttk.Notebook(running_list_frame, width=570, height=300)
         self.tab_control.grid(row=0, column=0)
@@ -190,6 +201,7 @@ class DraftTool:
         ov.bind('<Button-3>', self.player_rclick)
         self.overall_view.tag_configure('rostered', background='#A6A6A6')
         self.overall_view.tag_configure('rostered', foreground='#5A5A5A')
+        ov.tag_configure('removed', background='#FFCCCB')
         self.overall_view.pack(side='left', fill='both', expand=1)
         vsb = ttk.Scrollbar(ov, orient="vertical", command=self.overall_view.yview)
         ov.configure(yscrollcommand=vsb.set)
@@ -220,6 +232,7 @@ class DraftTool:
             self.pos_view[pos].bind('<<TreeviewSelect>>', self.on_select)
             self.pos_view[pos].bind('<Button-3>', self.player_rclick)
             self.pos_view[pos].tag_configure('rostered', background='#A6A6A6', foreground='#5A5A5A')
+            pv.tag_configure('removed', background='#FFCCCB')
             self.pos_view[pos].pack(side='left', fill='both', expand=1)
             vsb = ttk.Scrollbar(pv, orient="vertical", command=self.pos_view[pos].yview)
             pv.configure(yscrollcommand=vsb.set)
@@ -240,7 +253,10 @@ class DraftTool:
         popup = tk.Menu(self.main_win, tearoff=0)
         popup.add_command(label="Target Player", command=lambda: self.target_player(playerid))
         popup.add_separator()
-        popup.add_command(label='Remove Player', command=lambda: self.remove_player(playerid))
+        if playerid in self.removed_players:
+            popup.add_command(label='Restore Player', command=lambda: self.restore_player(playerid))
+        else:
+            popup.add_command(label='Remove Player', command=lambda: self.remove_player(playerid))
         try:
             popup.post(event.x_root, event.y_root)
         finally:
@@ -250,10 +266,19 @@ class DraftTool:
         print(f'Targeting player {playerid}')
     
     def remove_player(self, playerid):
-        print(f'Removing player {playerid}')
+        self.removed_players.append(playerid)
+        self.refresh_views()
+    
+    def restore_player(self, playerid):
+        self.removed_players.remove(playerid)
+        self.refresh_views()
 
     def toggle_drafted(self):
         self.show_drafted_players.set(not self.show_drafted_players.get())
+        self.refresh_views()
+    
+    def toggle_removed(self):
+        self.show_removed_players.set(not self.show_removed_players.get())
         self.refresh_views()
 
     def sort_treeview(self, treeview, col, pos=None):
@@ -390,6 +415,8 @@ class DraftTool:
             pos_df = self.sort_df_by(pos_df, self.sort_cols[self.overall_view])
         for i in range(len(pos_df)):
             id = pos_df.index[i]
+            if id in self.removed_players and self.show_removed_players.get() != 1:
+                continue
             name = pos_df.iat[i, 2]
             value = pos_df.iat[i, 1]
             inf_cost = '$' + "{:.0f}".format(int(value.split('$')[1]) * self.inflation)
@@ -399,9 +426,11 @@ class DraftTool:
             ppg = "{:.2f}".format(pos_df.iat[i, 7])
             pip = "{:.2f}".format(pos_df.iat[i, 8])
             salary = pos_df.iat[i, 10]
-            #This text currently doesn't work for TypeId.OTTONEU
             if salary == '$0':
-                self.overall_view.insert('', tk.END, text=id, values=(name, value, inf_cost, position, team, pts, ppg, pip))
+                if id in self.removed_players:
+                    self.overall_view.insert('', tk.END, text=id, values=(name, value, inf_cost, position, team, pts, ppg, pip), tags=('removed',))
+                else:
+                    self.overall_view.insert('', tk.END, text=id, values=(name, value, inf_cost, position, team, pts, ppg, pip))
             else:
                 self.overall_view.insert('', tk.END, text=id, values=(name, value, inf_cost, position, team, pts, ppg, pip), tags=('rostered',))
         self.scroll_bars[self.overall_view].pack()
@@ -416,6 +445,8 @@ class DraftTool:
             pos_df = self.sort_df_by(pos_df, self.sort_cols[self.pos_view[pos]])
         for i in range(len(pos_df)):
             id = pos_df.index[i]
+            if id in self.removed_players and self.show_removed_players.get() != 1:
+                continue
             name = pos_df.iat[i, 2]
             value = pos_df.iat[i, 1]
             inf_cost = '$' + "{:.0f}".format(int(value.split('$')[1]) * self.inflation)
@@ -424,9 +455,11 @@ class DraftTool:
             pts = "{:.1f}".format(pos_df.iat[i, 5])
             rate = "{:.2f}".format(pos_df.iat[i, 7])
             salary = pos_df.iat[i, 8]
-            #This text currently doesn't work for TypeId.OTTONEU
             if salary == '$0':
-                self.pos_view[pos].insert('', tk.END, text=id, values=(name, value, inf_cost, position, team, pts, rate))
+                if id in self.removed_players:
+                    self.pos_view[pos].insert('', tk.END, text=id, values=(name, value, inf_cost, position, team, pts, rate), tags=('removed',))
+                else:
+                    self.pos_view[pos].insert('', tk.END, text=id, values=(name, value, inf_cost, position, team, pts, rate))
             else:
                 self.pos_view[pos].insert('', tk.END, text=id, values=(name, value, inf_cost, position, team, pts, rate), tags=('rostered',))
         self.scroll_bars[self.pos_view[pos]].pack()
