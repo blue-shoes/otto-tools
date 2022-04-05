@@ -141,6 +141,7 @@ class DraftTool:
             self.search_view.heading(col, text=col) 
         self.search_view.grid(column=0,row=1, padx=5)   
         self.search_view.bind('<<TreeviewSelect>>', self.on_select)
+        sv.bind('<Button-3>', self.player_rclick)
         self.search_view.tag_configure('rostered', background='#A6A6A6')
         self.search_view.tag_configure('rostered', foreground='#5A5A5A')
         sv.column("# 1",anchor=W, stretch=NO, width=175)
@@ -186,6 +187,7 @@ class DraftTool:
             else:
                 self.overall_view.heading(col, text=col)
         self.overall_view.bind('<<TreeviewSelect>>', self.on_select)
+        ov.bind('<Button-3>', self.player_rclick)
         self.overall_view.tag_configure('rostered', background='#A6A6A6')
         self.overall_view.tag_configure('rostered', foreground='#5A5A5A')
         self.overall_view.pack(side='left', fill='both', expand=1)
@@ -216,6 +218,7 @@ class DraftTool:
                 else:
                     pv.heading(col, text=col)
             self.pos_view[pos].bind('<<TreeviewSelect>>', self.on_select)
+            self.pos_view[pos].bind('<Button-3>', self.player_rclick)
             self.pos_view[pos].tag_configure('rostered', background='#A6A6A6', foreground='#5A5A5A')
             self.pos_view[pos].pack(side='left', fill='both', expand=1)
             vsb = ttk.Scrollbar(pv, orient="vertical", command=self.pos_view[pos].yview)
@@ -229,6 +232,25 @@ class DraftTool:
         self.refresh_views()
 
         main_frame.pack()
+
+    def player_rclick(self, event):
+        iid = event.widget.identify_row(event.y)
+        event.widget.selection_set(iid)
+        playerid = event.widget.item(event.widget.selection()[0])["text"]
+        popup = tk.Menu(self.main_win, tearoff=0)
+        popup.add_command(label="Target Player", command=lambda: self.target_player(playerid))
+        popup.add_separator()
+        popup.add_command(label='Remove Player', command=lambda: self.remove_player(playerid))
+        try:
+            popup.post(event.x_root, event.y_root)
+        finally:
+            popup.grab_release()
+    
+    def target_player(self, playerid):
+        print(f'Targeting player {playerid}')
+    
+    def remove_player(self, playerid):
+        print(f'Removing player {playerid}')
 
     def toggle_drafted(self):
         self.show_drafted_players.set(not self.show_drafted_players.get())
