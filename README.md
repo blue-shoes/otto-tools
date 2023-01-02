@@ -1,3 +1,7 @@
+!!NOTICE!! 
+
+This repository is archived as of 1/2/2023. Functionality and open issues hav been moved to the Ottoneu Toolbox repository for a fuller user experience (https://github.com/blue-shoes/ottoneu-toolbox). 
+
 # Otto-Tools
 
 ## Project Description
